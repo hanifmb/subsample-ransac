@@ -3,6 +3,13 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import RectangleSelector
+import time 
+
+x_coords = None
+y_coords = None
+x_coords_sub = None
+y_coords_sub = None
+xy_coords_sub = None
 
 def distance_to_line(point, slope, intercept):
     # Unpack the point coordinates
@@ -16,7 +23,8 @@ def distance_to_line(point, slope, intercept):
 def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iterations, num_of_lines_to_detect):
 
     best_lines = []
-    color = [0] * len(data)
+    color_choice = [(1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 1)]
+    color = [(0, 0, 1, 1)] * len(data)
     remaining_data = data
 
     for i in range(num_of_lines_to_detect):
@@ -34,12 +42,12 @@ def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iter
     
     print(best_lines)
     
-    color_code = 1
+    color_code = 0
     for best_line in best_lines:
         slope, intercept = best_line
         for idx, (x, y) in enumerate(data):
             if distance_to_line((x, y), slope, intercept) < threshold:
-                color[idx] = color_code 
+                color[idx] = color_choice[color_code]
 
         color_code += 1
 
@@ -77,7 +85,7 @@ def ransac_line_detection(data, threshold, min_points, max_iterations):
 def polar_to_cartesian(polar_points):
 
     cartesian_points = []
-    for point in points:
+    for point in polar_points:
         degrees = point[0]
         radius = point[1]
 
@@ -101,40 +109,66 @@ def load_points_file(filename):
 
 def onselect(eclick, erelease):
     # Get the coordinates of the selected rectangle
+
+    global x_coords_sub
+    global y_coords_sub
+    global xy_coords_sub
+
     x1, y1 = eclick.xdata, eclick.ydata
     x2, y2 = erelease.xdata, erelease.ydata
     
     # Get the indices of the points within the selected rectangle
     ind = np.where((x_coords >= min(x1,x2)) & (x_coords <= max(x1,x2)) & (y_coords >= min(y1,y2)) & (y_coords <= max(y1,y2)))[0]
-    
+
+    x_coords_sub = [x_coords[i] for i in ind]
+    y_coords_sub = [y_coords[i] for i in ind]
+    xy_coords_sub = [(x_coords_sub[i], y_coords_sub[i]) for i in range(len(x_coords_sub))]
+
     # Print the indices of the selected points
-    print('Selected points:', ind)
+    print('Selected points:', xy_coords_sub)
 
-if __name__ == "__main__":
-
-    points = load_points_file("3tabla1a.txt")
+def main():
+    
+    points = load_points_file("3tabla1b.txt")
     cartesian_points = polar_to_cartesian(points)
 
     # best_line, color = ransac_line_detection(cartesian_points, 1.5, 2, 5000)
-    color = sequential_ransac_multi_line_detection(cartesian_points, 2, 2, 5000, 4)
+    # color = sequential_ransac_multi_line_detection(cartesian_points, 2, 2, 5000, 4)
 
     # cartesian_points.append((0,0))
     # color = ['blue'] * len(cartesian_points)
     # color[-1] = 'red'
 
     global x_coords 
-    x_coords = [p[0] for p in cartesian_points]
     global y_coords 
-    y_coords = [p[1] for p in cartesian_points]
 
+    x_coords = [p[0] for p in cartesian_points]
+    y_coords = [p[1] for p in cartesian_points]
+  
     # plt.xlim(0, 1000)
     # plt.ylim(-500, 500)
 
+    plt.ion()
     fig, ax = plt.subplots()
-    ax.scatter(x_coords, y_coords)
-    plt.scatter(x_coords, y_coords, c = color)
+    sc = ax.scatter(x_coords, y_coords)
+    # plt.scatter(x_coords, y_coords, c = color)
 
     rect_selector = RectangleSelector(ax, onselect, useblit=True, button=[1], 
                                        minspanx=5, minspany=5, spancoords='data')
+    plt.draw()
 
-    plt.show()
+    executed = False
+    while True:
+        if xy_coords_sub is not None and executed is not True:
+            color = sequential_ransac_multi_line_detection(xy_coords_sub, 2, 2, 5000, 3)
+            sc.set_offsets(np.c_[x_coords_sub,y_coords_sub])
+            sc.set_facecolor(color)
+            executed = True
+            
+        fig.canvas.draw_idle()
+        plt.pause(0.1)
+
+    plt.waitforbuttonpress()
+
+if __name__ == "__main__":
+    main()
