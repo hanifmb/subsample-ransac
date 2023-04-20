@@ -11,6 +11,22 @@ x_coords_sub = None
 y_coords_sub = None
 xy_coords_sub = None
 
+def fit_line(points):
+    n = len(points)
+
+    # Calculate the mean of x and y
+    x_mean = sum([point[0] for point in points]) / n
+    y_mean = sum([point[1] for point in points]) / n
+
+    # Calculate the slope and y-intercept of the line
+    numerator = sum([(points[i][0] - x_mean) * (points[i][1] - y_mean) for i in range(n)])
+    denominator = sum([(points[i][0] - x_mean) ** 2 for i in range(n)])
+    m = numerator / denominator
+    c = y_mean - m * x_mean
+
+    # Return the slope and y-intercept
+    return m, c
+
 def distance_to_line(point, slope, intercept):
     # Unpack the point coordinates
     x, y = point
@@ -28,7 +44,7 @@ def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iter
     remaining_data = data
 
     for i in range(num_of_lines_to_detect):
-        best_line = ransac_line_detection(remaining_data, 0.1, 2, 5000)
+        best_line = ransac_line_detection(data=remaining_data, threshold=threshold, min_points=2, max_iterations=5000)
 
         slope, intercept = best_line
         inlier_indices = []
@@ -40,16 +56,26 @@ def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iter
 
         best_lines.append(best_line)
     
-    print(best_lines)
+    print("best_lines: ", best_lines)
     
+    # iterate through all the best lines: assign colors and estimate new line on the inliers
     color_code = 0
+    new_lines = []
     for best_line in best_lines:
         slope, intercept = best_line
+        inlier_points = []
+
         for idx, (x, y) in enumerate(data):
             if distance_to_line((x, y), slope, intercept) < threshold:
                 color[idx] = color_choice[color_code]
+                inlier_points.append((x, y))
+
+        m, c = fit_line(inlier_points)
+        new_lines.append((m, c))
 
         color_code += 1
+
+    print("new_line", new_lines)
 
     return color
     
