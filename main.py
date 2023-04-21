@@ -1,9 +1,9 @@
+import argparse
 import math
 import random
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import RectangleSelector
-import time 
 
 x_coords = None
 y_coords = None
@@ -39,12 +39,12 @@ def distance_to_line(point, slope, intercept):
 def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iterations, num_of_lines_to_detect):
 
     best_lines = []
-    color_choice = [(1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 1)]
-    color = [(0, 0, 1, 1)] * len(data)
+    color_choice = [(1, 0, 0, 0.7), (0, 1, 0, 0.7), (1, 0, 1, 0.7)]
+    color = [(0, 0, 1, 0.7)] * len(data)
     remaining_data = data
 
     for i in range(num_of_lines_to_detect):
-        best_line = ransac_line_detection(data=remaining_data, threshold=threshold, min_points=2, max_iterations=5000)
+        best_line = ransac_line_detection(data=remaining_data, threshold=threshold, min_points=min_points, max_iterations=max_iterations)
 
         slope, intercept = best_line
         inlier_indices = []
@@ -56,11 +56,12 @@ def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iter
 
         best_lines.append(best_line)
     
-    print("best_lines: ", best_lines)
-    
+    # print("best_lines: ", best_lines)
     # iterate through all the best lines: assign colors and estimate new line on the inliers
     color_code = 0
     new_lines = []
+
+    print("slope(m) intersection(c) color(r, g, b, a)")
     for best_line in best_lines:
         slope, intercept = best_line
         inlier_points = []
@@ -73,11 +74,12 @@ def sequential_ransac_multi_line_detection(data, threshold, min_points, max_iter
         m, c = fit_line(inlier_points)
         new_lines.append((m, c))
 
+        print(m, c, color_choice[color_code])
         color_code += 1
 
-    print("new_line", new_lines)
+    # print("best_lines:", new_lines)
 
-    return color
+    return color, new_lines
     
 def ransac_line_detection(data, threshold, min_points, max_iterations):
 
@@ -127,6 +129,8 @@ def load_points_file(filename):
     points = []
     with open(filename, 'r') as f:
         for line in f:
+            if line[0] == "#":
+                continue
             x, y, _ = map(float, line.split())
             points.append((x, y))
 
@@ -151,19 +155,18 @@ def onselect(eclick, erelease):
     xy_coords_sub = [(x_coords_sub[i], y_coords_sub[i]) for i in range(len(x_coords_sub))]
 
     # Print the indices of the selected points
-    print('Selected points:', xy_coords_sub)
+    # print('Selected points:', xy_coords_sub)
 
 def main():
     
-    points = load_points_file("3tabla1b.txt")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file', default="3tabla1b.txt")
+    parser.add_argument('--threshold', default=2, type=float)
+    parser.add_argument('--iter', default=1000, type=int)
+    args = parser.parse_args()
+
+    points = load_points_file(args.file)
     cartesian_points = polar_to_cartesian(points)
-
-    # best_line, color = ransac_line_detection(cartesian_points, 1.5, 2, 5000)
-    # color = sequential_ransac_multi_line_detection(cartesian_points, 2, 2, 5000, 4)
-
-    # cartesian_points.append((0,0))
-    # color = ['blue'] * len(cartesian_points)
-    # color[-1] = 'red'
 
     global x_coords 
     global y_coords 
@@ -171,12 +174,9 @@ def main():
     x_coords = [p[0] for p in cartesian_points]
     y_coords = [p[1] for p in cartesian_points]
   
-    # plt.xlim(0, 1000)
-    # plt.ylim(-500, 500)
-
     plt.ion()
     fig, ax = plt.subplots()
-    sc = ax.scatter(x_coords, y_coords)
+    sc = ax.scatter(x_coords, y_coords, c=[[0, 0, 1, 0.7]])
     # plt.scatter(x_coords, y_coords, c = color)
 
     rect_selector = RectangleSelector(ax, onselect, useblit=True, button=[1], 
@@ -184,17 +184,17 @@ def main():
     plt.draw()
 
     executed = False
-    while True:
-        if xy_coords_sub is not None and executed is not True:
-            color = sequential_ransac_multi_line_detection(xy_coords_sub, 2, 2, 5000, 3)
+    while plt.fignum_exists(fig.number):
+        if xy_coords_sub is not None and not executed:
+            color, detected_lines = sequential_ransac_multi_line_detection(xy_coords_sub, threshold=args.threshold, min_points=2, max_iterations=args.iter, num_of_lines_to_detect=3)
             sc.set_offsets(np.c_[x_coords_sub,y_coords_sub])
             sc.set_facecolor(color)
             executed = True
-            
+
         fig.canvas.draw_idle()
         plt.pause(0.1)
 
-    plt.waitforbuttonpress()
+    # plt.waitforbuttonpress()
 
 if __name__ == "__main__":
     main()
