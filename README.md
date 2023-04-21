@@ -23,5 +23,3 @@ Save output to a text file
 ```Bash
 python main.py --file 3tabla1b.txt --threshold 2 --iter 1000 > output.txt
 ```
-
-![usage](usage.gif)
